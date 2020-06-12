@@ -17,7 +17,7 @@
 
 //using Obstacle = std::vector<std::array<float, 2>>;
 //using State = std::array<float, 5>;
-using Window = std::array<float, 4>;
+//using Window = std::array<float, 4>;
 //using Point = std::array<float, 2>;
 //using Control = std::array<float, 2>;
 
@@ -32,6 +32,15 @@ public:
 
 
 using Traj = std::vector<State>;
+
+class Window {
+public:
+    float min_v_;
+    float max_v_;
+    float min_w_;
+    float max_w_;
+
+};
 
 class Control {
 public:
@@ -57,7 +66,7 @@ public:
     float max_dyawrate = 40.0 * PI / 180.0;
 
     float v_reso = 0.01;
-    float yawrate_reso = 0.1 * PI / 180.0;
+    float yawrate_reso = 0.01 * PI / 180.0;
 
     float dt = 0.1;
     float predict_time = 3.0;
@@ -76,12 +85,12 @@ State motion(State x, Control u, float dt){
 
 Window calc_dynamic_window(State x, Config config){
 
-    return {{
+    return {
                     std::max((x.v_ - config.max_accel * config.dt), config.min_speed),
                     std::min((x.v_ + config.max_accel * config.dt), config.max_speed),
                     std::max((x.w_ - config.max_dyawrate * config.dt), -config.max_yawrate),
                     std::min((x.w_ + config.max_dyawrate * config.dt), config.max_yawrate)
-            }};
+            };
 };
 
 
@@ -148,8 +157,9 @@ Traj calc_final_input(
     Traj best_traj;
 
     // evalucate all trajectory with sampled input in dynamic window
-    for (float v=dw[0]; v<=dw[1]; v+=config.v_reso){
-        for (float w=dw[2]; w<=dw[3]; w+=config.yawrate_reso){
+    int traj_cnt = 0;
+    for (float v=dw.min_v_; v<=dw.max_v_; v+=config.v_reso){
+        for (float w=dw.min_w_; w<=dw.max_w_; w+=config.yawrate_reso){
 
             Traj traj = calc_trajectory(x, v, w, config);
 
@@ -163,8 +173,11 @@ Traj calc_final_input(
                 min_u = Control{v, w};
                 best_traj = traj;
             }
+            traj_cnt ++;
         }
     }
+
+    std::cout << "traj_cnt: " << traj_cnt << std::endl;
     u = min_u;
     return best_traj;
 };
@@ -214,7 +227,9 @@ int main(){
     cv::namedWindow("dwa", cv::WINDOW_NORMAL);
     int count = 0;
 
-    for(int i=0; i<1000 && !terminal; i++){
+
+    cv::Mat final_canvas;
+    for(int i=0; i<10000 && !terminal; i++){
         Traj ltraj = dwa_control(x, u, config, goal, ob);
         x = motion(x, u, config.dt);
         traj.push_back(x);
@@ -245,11 +260,10 @@ int main(){
 
         if (std::sqrt(std::pow((x.x_ - goal.x_), 2) + std::pow((x.y_ - goal.y_), 2)) <= config.robot_radius){
             terminal = true;
-            for(unsigned int j=0; j<traj.size(); j++){
-                cv::circle(bg, cv_offset(traj[j].x_, traj[j].y_, bg.cols, bg.rows),
-                           7, cv::Scalar(0,0,255), -1);
-            }
+            final_canvas = bg;
         }
+
+
 
 
         cv::imshow("dwa", bg);
@@ -260,4 +274,20 @@ int main(){
 
         count++;
     }
+
+
+    if (!final_canvas.empty()) {
+        for(unsigned int j=0; j<traj.size(); j++){
+            cv::circle(final_canvas, cv_offset(traj[j].x_, traj[j].y_, final_canvas.cols, final_canvas.rows),
+                       7, cv::Scalar(0,0,255), -1);
+        }
+
+        cv::imshow("dwa", final_canvas);
+        cv::waitKey();
+    }
+
+    return 0;
+
+
+
 }
