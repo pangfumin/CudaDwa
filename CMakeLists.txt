@@ -13,15 +13,35 @@ LIST(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/modules")
 find_package(OpenCV 3.4.0 REQUIRED)
 find_package(Eigen3 REQUIRED)
 
+find_package(CUDA)
+set(CUDA_SOURCE_PROPERTY_FORMAT OBJ)
+set(CUDA_SEPARABLE_COMPILATION ON)
+set(CUDA_PROPAGATE_HOST_FLAGS OFF)
+set(CUDA_NVCC_FLAGS -arch=sm_60;-O3;-G;-g;-std=c++11)
 
 include_directories(
     ${OpenCV_INCLUDE_DIRS}
     ${EIGEN3_INCLUDE_DIR}
     )
 
-add_executable(dwa_demo 
-cpp_sample/dwa.cpp)
+add_executable(dwa_cpp_demo
+cpp_sample/dwa_demo.cpp)
 
-target_link_libraries(dwa_demo
+target_link_libraries(dwa_cpp_demo
     ${OpenCV_LIBS}
 )
+
+
+include_directories(
+        ${CUDA_INCLUDE_DIRS}
+)
+
+CUDA_ADD_EXECUTABLE(dwa_cuda_demo
+        cuda_sample/dwa_demo.cpp)
+
+target_link_libraries(dwa_cuda_demo
+        ${CUDA_LIBRARIES}
+        ${OpenCV_LIBS}
+        )
+
+
