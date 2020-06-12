@@ -91,6 +91,13 @@ Window calc_dynamic_window(State x, Config config){
                     std::max((x.w_ - config.max_dyawrate * config.dt), -config.max_yawrate),
                     std::min((x.w_ + config.max_dyawrate * config.dt), config.max_yawrate)
             };
+
+//    return {
+//            (x.v_ - config.max_accel * config.dt),
+//            (x.v_ + config.max_accel * config.dt),
+//            (x.w_ - config.max_dyawrate * config.dt),
+//            (x.w_ + config.max_dyawrate * config.dt)
+//    };
 };
 
 

@@ -34,10 +34,13 @@ target_link_libraries(dwa_cpp_demo
 
 include_directories(
         ${CUDA_INCLUDE_DIRS}
+        ${OpenCV_INCLUDE_DIRS}
+        ${EIGEN3_INCLUDE_DIR}
 )
 
 CUDA_ADD_EXECUTABLE(dwa_cuda_demo
-        cuda_sample/dwa_demo.cpp)
+        cuda_sample/dwa_demo.cpp
+        cuda_sample/dwa.cu)
 
 target_link_libraries(dwa_cuda_demo
         ${CUDA_LIBRARIES}

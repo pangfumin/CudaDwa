@@ -1,9 +1,3 @@
-/*************************************************************************
-	> File Name: main.cpp
-	> Author: TAI Lei
-	> Mail: ltai@ust.hk
-	> Created Time: Thu Mar  7 19:39:14 2019
- ************************************************************************/
 
 #include<iostream>
 #include<vector>
@@ -14,6 +8,24 @@
 #include<opencv2/highgui/highgui.hpp>
 
 #include "dwa.h"
+#include <cuda_runtime_api.h>
+#include <cuda.h>
+
+#define checkCudaErrors(val) check_cuda( (val), #val, __FILE__, __LINE__ )
+
+
+void check_cuda(cudaError_t result, char const *const func, const char *const file, int const line) {
+    if (result) {
+        std::cerr << "CUDA error = " << static_cast<unsigned int>(result) << " at " <<
+                  file << ":" << line << " '" << func << "' \n";
+        // Make sure we call CUDA Device Reset before exiting
+        cudaDeviceReset();
+        exit(99);
+    }
+}
+
+
+
 
 
 using Traj = std::vector<State>;
@@ -21,14 +33,11 @@ using Traj = std::vector<State>;
 using Obstacle = std::vector<Point>;;
 
 
-State motion(State x, Control u, float dt){
-    x.theta_ += u.w_ * dt;
-    x.x_ += u.v_ * std::cos(x.theta_) * dt;
-    x.y_ += u.v_ * std::sin(x.theta_) * dt;
-    x.v_ = u.v_;
-    x.w_ = u.w_;
-    return x;
-};
+extern "C"  State motion(State x, Control u, float dt);
+extern "C" State* calc_final_input(
+        State* x, Control* u,
+        Window* dw, Config* config, Point* goal,
+        Point* ob);
 
 Window calc_dynamic_window(State x, Config config){
 
@@ -38,6 +47,8 @@ Window calc_dynamic_window(State x, Config config){
                     std::max((x.w_ - config.max_dyawrate * config.dt), -config.max_yawrate),
                     std::min((x.w_ + config.max_dyawrate * config.dt), config.max_yawrate)
             };
+
+
 };
 
 
@@ -149,9 +160,9 @@ cv::Point2i cv_offset(
 
 
 int main(){
-    State x{0.0, 0.0, PI/8.0, 0.0, 0.0};
-    Point goal{10.0,10.0};
-    Obstacle ob{
+    State host_x{0.0, 0.0, PI/8.0, 0.0, 0.0};
+    Point host_goal{10.0,10.0};
+    Obstacle host_ob{
                         {-1, -1},
                         {0, 2},
                         {4.0, 2.0},
@@ -164,10 +175,10 @@ int main(){
                         {12.0, 12.0}
                 };
 
-    Control u{0.0, 0.0};
-    Config config;
+    Control host_u{0.0, 0.0};
+    Config host_config;
     Traj traj;
-    traj.push_back(x);
+    traj.push_back(host_x);
 
     bool terminal = false;
 
@@ -175,37 +186,38 @@ int main(){
     int count = 0;
 
 
+
     cv::Mat final_canvas;
     for(int i=0; i<10000 && !terminal; i++){
-        Traj ltraj = dwa_control(x, u, config, goal, ob);
-        x = motion(x, u, config.dt);
-        traj.push_back(x);
+        Traj ltraj = dwa_control(host_x, host_u, host_config, host_goal, host_ob);
+        host_x = motion(host_x, host_u, host_config.dt);
+        traj.push_back(host_x);
 
 
         // visualization
         cv::Mat bg(3500,3500, CV_8UC3, cv::Scalar(255,255,255));
-        cv::circle(bg, cv_offset(goal.x_, goal.y_, bg.cols, bg.rows),
+        cv::circle(bg, cv_offset(host_goal.x_, host_goal.y_, bg.cols, bg.rows),
                    30, cv::Scalar(255,0,0), 5);
-        for(unsigned int j=0; j<ob.size(); j++){
-            cv::circle(bg, cv_offset(ob[j].x_, ob[j].y_, bg.cols, bg.rows),
+        for(unsigned int j=0; j<host_ob.size(); j++){
+            cv::circle(bg, cv_offset(host_ob[j].x_, host_ob[j].y_, bg.cols, bg.rows),
                        20, cv::Scalar(0,0,0), -1);
         }
         for(unsigned int j=0; j<ltraj.size(); j++){
             cv::circle(bg, cv_offset(ltraj[j].x_, ltraj[j].y_, bg.cols, bg.rows),
                        7, cv::Scalar(0,255,0), -1);
         }
-        cv::circle(bg, cv_offset(x.x_, x.y_, bg.cols, bg.rows),
+        cv::circle(bg, cv_offset(host_x.x_, host_x.y_, bg.cols, bg.rows),
                    30, cv::Scalar(0,0,255), 5);
 
 
         cv::arrowedLine(
                 bg,
-                cv_offset(x.x_, x.y_, bg.cols, bg.rows),
-                cv_offset(x.x_ + std::cos(x.theta_), x.y_ + std::sin(x.theta_), bg.cols, bg.rows),
+                cv_offset(host_x.x_, host_x.y_, bg.cols, bg.rows),
+                cv_offset(host_x.x_ + std::cos(host_x.theta_), host_x.y_ + std::sin(host_x.theta_), bg.cols, bg.rows),
                 cv::Scalar(255,0,255),
                 7);
 
-        if (std::sqrt(std::pow((x.x_ - goal.x_), 2) + std::pow((x.y_ - goal.y_), 2)) <= config.robot_radius){
+        if (std::sqrt(std::pow((host_x.x_ - host_goal.x_), 2) + std::pow((host_x.y_ - host_goal.y_), 2)) <= host_config.robot_radius){
             terminal = true;
             final_canvas = bg;
         }
