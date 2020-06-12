@@ -15,12 +15,23 @@
 
 #define PI 3.141592653
 
-using Traj = std::vector<std::array<float, 5>>;
-using Obstacle = std::vector<std::array<float, 2>>;
-using State = std::array<float, 5>;
+//using Obstacle = std::vector<std::array<float, 2>>;
+//using State = std::array<float, 5>;
 using Window = std::array<float, 4>;
 //using Point = std::array<float, 2>;
 //using Control = std::array<float, 2>;
+
+class State {
+public:
+    float x_;
+    float y_;
+    float theta_;
+    float v_;
+    float w_;
+};
+
+
+using Traj = std::vector<State>;
 
 class Control {
 public:
@@ -33,6 +44,8 @@ public:
     float x_;
     float y_;
 };
+
+using Obstacle = std::vector<Point>;;
 
 class Config{
 public:
@@ -53,21 +66,21 @@ public:
 };
 
 State motion(State x, Control u, float dt){
-    x[2] += u.w_ * dt;
-    x[0] += u.v_ * std::cos(x[2]) * dt;
-    x[1] += u.v_ * std::sin(x[2]) * dt;
-    x[3] = u.v_;
-    x[4] = u.w_;
+    x.theta_ += u.w_ * dt;
+    x.x_ += u.v_ * std::cos(x.theta_) * dt;
+    x.y_ += u.v_ * std::sin(x.theta_) * dt;
+    x.v_ = u.v_;
+    x.w_ = u.w_;
     return x;
 };
 
 Window calc_dynamic_window(State x, Config config){
 
     return {{
-                    std::max((x[3] - config.max_accel * config.dt), config.min_speed),
-                    std::min((x[3] + config.max_accel * config.dt), config.max_speed),
-                    std::max((x[4] - config.max_dyawrate * config.dt), -config.max_yawrate),
-                    std::min((x[4] + config.max_dyawrate * config.dt), config.max_yawrate)
+                    std::max((x.v_ - config.max_accel * config.dt), config.min_speed),
+                    std::min((x.v_ + config.max_accel * config.dt), config.max_speed),
+                    std::max((x.w_ - config.max_dyawrate * config.dt), -config.max_yawrate),
+                    std::min((x.w_ + config.max_dyawrate * config.dt), config.max_yawrate)
             }};
 };
 
@@ -93,10 +106,10 @@ float calc_obstacle_cost(Traj traj, Obstacle ob, Config config){
 
     for (unsigned int ii=0; ii<traj.size(); ii+=skip_n){
         for (unsigned int i=0; i< ob.size(); i++){
-            float ox = ob[i][0];
-            float oy = ob[i][1];
-            float dx = traj[ii][0] - ox;
-            float dy = traj[ii][1] - oy;
+            float ox = ob[i].x_;
+            float oy = ob[i].y_;
+            float dx = traj[ii].x_ - ox;
+            float dy = traj[ii].y_ - oy;
 
             float r = std::sqrt(dx*dx + dy*dy);
             if (r <= config.robot_radius){
@@ -115,8 +128,8 @@ float calc_obstacle_cost(Traj traj, Obstacle ob, Config config){
 float calc_to_goal_cost(Traj traj, Point goal, Config config){
 
     float goal_magnitude = std::sqrt(goal.x_*goal.x_ + goal.y_*goal.y_);
-    float traj_magnitude = std::sqrt(std::pow(traj.back()[0], 2) + std::pow(traj.back()[1], 2));
-    float dot_product = (goal.x_ * traj.back()[0]) + (goal.y_ * traj.back()[1]);
+    float traj_magnitude = std::sqrt(std::pow(traj.back().x_, 2) + std::pow(traj.back().y_, 2));
+    float dot_product = (goal.x_ * traj.back().x_) + (goal.y_ * traj.back().y_);
     float error = dot_product / (goal_magnitude * traj_magnitude);
     float error_angle = std::acos(error);
     float cost = config.to_goal_cost_gain * error_angle;
@@ -127,7 +140,7 @@ float calc_to_goal_cost(Traj traj, Point goal, Config config){
 Traj calc_final_input(
         State x, Control& u,
         Window dw, Config config, Point goal,
-        std::vector<std::array<float, 2>>ob){
+        std::vector<Point>ob){
 
     float min_cost = 10000.0;
     Control min_u = u;
@@ -141,7 +154,7 @@ Traj calc_final_input(
             Traj traj = calc_trajectory(x, v, w, config);
 
             float to_goal_cost = calc_to_goal_cost(traj, goal, config);
-            float speed_cost = config.speed_cost_gain * (config.max_speed - traj.back()[3]);
+            float speed_cost = config.speed_cost_gain * (config.max_speed - traj.back().v_);
             float ob_cost = calc_obstacle_cost(traj, ob, config);
             float final_cost = to_goal_cost + speed_cost + ob_cost;
 
@@ -176,20 +189,20 @@ cv::Point2i cv_offset(
 
 
 int main(){
-    State x({{0.0, 0.0, PI/8.0, 0.0, 0.0}});
+    State x{0.0, 0.0, PI/8.0, 0.0, 0.0};
     Point goal{10.0,10.0};
-    Obstacle ob({
-                        {{-1, -1}},
-                        {{0, 2}},
-                        {{4.0, 2.0}},
-                        {{5.0, 4.0}},
-                        {{5.0, 5.0}},
-                        {{5.0, 6.0}},
-                        {{5.0, 9.0}},
-                        {{8.0, 9.0}},
-                        {{7.0, 9.0}},
-                        {{12.0, 12.0}}
-                });
+    Obstacle ob{
+                        {-1, -1},
+                        {0, 2},
+                        {4.0, 2.0},
+                        {5.0, 4.0},
+                        {5.0, 5.0},
+                        {5.0, 6.0},
+                        {5.0, 9.0},
+                        {8.0, 9.0},
+                        {7.0, 9.0},
+                        {12.0, 12.0}
+                };
 
     Control u{0.0, 0.0};
     Config config;
@@ -212,28 +225,28 @@ int main(){
         cv::circle(bg, cv_offset(goal.x_, goal.y_, bg.cols, bg.rows),
                    30, cv::Scalar(255,0,0), 5);
         for(unsigned int j=0; j<ob.size(); j++){
-            cv::circle(bg, cv_offset(ob[j][0], ob[j][1], bg.cols, bg.rows),
+            cv::circle(bg, cv_offset(ob[j].x_, ob[j].y_, bg.cols, bg.rows),
                        20, cv::Scalar(0,0,0), -1);
         }
         for(unsigned int j=0; j<ltraj.size(); j++){
-            cv::circle(bg, cv_offset(ltraj[j][0], ltraj[j][1], bg.cols, bg.rows),
+            cv::circle(bg, cv_offset(ltraj[j].x_, ltraj[j].y_, bg.cols, bg.rows),
                        7, cv::Scalar(0,255,0), -1);
         }
-        cv::circle(bg, cv_offset(x[0], x[1], bg.cols, bg.rows),
+        cv::circle(bg, cv_offset(x.x_, x.y_, bg.cols, bg.rows),
                    30, cv::Scalar(0,0,255), 5);
 
 
         cv::arrowedLine(
                 bg,
-                cv_offset(x[0], x[1], bg.cols, bg.rows),
-                cv_offset(x[0] + std::cos(x[2]), x[1] + std::sin(x[2]), bg.cols, bg.rows),
+                cv_offset(x.x_, x.y_, bg.cols, bg.rows),
+                cv_offset(x.x_ + std::cos(x.theta_), x.y_ + std::sin(x.theta_), bg.cols, bg.rows),
                 cv::Scalar(255,0,255),
                 7);
 
-        if (std::sqrt(std::pow((x[0] - goal.x_), 2) + std::pow((x[1] - goal.y_), 2)) <= config.robot_radius){
+        if (std::sqrt(std::pow((x.x_ - goal.x_), 2) + std::pow((x.y_ - goal.y_), 2)) <= config.robot_radius){
             terminal = true;
             for(unsigned int j=0; j<traj.size(); j++){
-                cv::circle(bg, cv_offset(traj[j][0], traj[j][1], bg.cols, bg.rows),
+                cv::circle(bg, cv_offset(traj[j].x_, traj[j].y_, bg.cols, bg.rows),
                            7, cv::Scalar(0,0,255), -1);
             }
         }
