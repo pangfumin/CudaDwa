@@ -29,9 +29,6 @@ private:
             Window dw, Config config, Point goal,
             std::vector<Point>ob);
 
-
-
-
     int max_control_sample_cnt_;
     int motion_forward_steps_;
 

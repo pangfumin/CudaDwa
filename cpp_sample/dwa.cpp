@@ -123,6 +123,10 @@ Traj Dwa::calc_final_input(
     min_u.v_ = 0.0;
     Traj best_traj;
 
+    // capture the start time
+    clock_t         start, stop;
+    start = clock();
+
     // evalucate all trajectory with sampled input in dynamic window
     int traj_cnt = 0;
     for (float v=dw.min_v_; v<=dw.max_v_; v+=config.v_reso){
@@ -143,6 +147,11 @@ Traj Dwa::calc_final_input(
             traj_cnt ++;
         }
     }
+
+    stop = clock();
+    float   elapsedTime = (float)(stop - start) /
+                          (float)CLOCKS_PER_SEC * 1000.0f;
+    printf( "Time to generate:  %3.1f ms\n", elapsedTime );
 
     u = min_u;
     return best_traj;

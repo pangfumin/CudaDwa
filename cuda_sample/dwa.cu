@@ -263,11 +263,18 @@ Traj Dwa::calc_final_input(
         }
     }
 
-    std::cout << "valid_control_sample_cnt: " << valid_control_sample_cnt << " " << max_control_sample_cnt_ << std::endl;
+//    std::cout << "valid_control_sample_cnt: " << valid_control_sample_cnt << " " << max_control_sample_cnt_ << std::endl;
+
+
+    cudaEvent_t     gpu_start, gpu_stop;
+    checkCudaErrors( cudaEventCreate( &gpu_start ) );
+    checkCudaErrors( cudaEventCreate( &gpu_stop ) );
+    checkCudaErrors( cudaEventRecord( gpu_start, 0 ) );
 
     checkCudaErrors( cudaMemcpy( dev_cur_x_, &cur_x_, 1 * sizeof(State), cudaMemcpyHostToDevice ) );
     checkCudaErrors( cudaMemcpy( dev_valid_control_sample_cnt_, &valid_control_sample_cnt, 1 * sizeof(int), cudaMemcpyHostToDevice ) );
     checkCudaErrors( cudaMemcpy( dev_control_samples_, control_samples.data(), control_samples.size() * sizeof(Control), cudaMemcpyHostToDevice ) );
+
 
 
     calc_trajectories_costs_kernel<<<blocksPerGrid,threadsPerBlock>>>(
@@ -282,6 +289,10 @@ Traj Dwa::calc_final_input(
             dev_motion_forward_steps_, //int  *motion_steps,
             dev_obs_cnt_ //int *obs_cnt
             );
+
+
+
+
 
     // fetch const
     std::vector<float> tem_final_costs(max_control_sample_cnt_);
@@ -305,11 +316,22 @@ Traj Dwa::calc_final_input(
                                  motion_forward_steps_ * sizeof(State), cudaMemcpyDeviceToHost ) );
 
 
+    // get stop time, and display the timing results
+    checkCudaErrors( cudaEventRecord( gpu_stop, 0 ) );
+    checkCudaErrors( cudaEventSynchronize( gpu_stop ) );
+    float   GPU_elapsedTime;
+    checkCudaErrors( cudaEventElapsedTime( &GPU_elapsedTime,
+                                           gpu_start, gpu_stop ) );
+    printf( "GPU Time to process:  %3.1f ms\n", GPU_elapsedTime );
 
 
-
+#define ALSO_CALCULATE_CPU
 #ifdef ALSO_CALCULATE_CPU
-    // todo: parallelization
+
+    // capture the start time
+    clock_t         cpu_start, cpu_stop;
+    cpu_start = clock();
+
     for (int i = 0; i < valid_control_sample_cnt; i++) {
         auto vw = control_samples[i];
 
@@ -344,6 +366,12 @@ Traj Dwa::calc_final_input(
             best_idx = i;
         }
     }
+
+    cpu_stop = clock();
+    float   CPU_elapsedTime = (float)(cpu_stop - cpu_start) /
+                          (float)CLOCKS_PER_SEC * 1000.0f;
+    printf( "CPU Time to process:  %3.1f ms\n", CPU_elapsedTime );
+
 
     std::cout << "best_idx: " << best_idx << " " << tem_best_idx << std::endl;
 #endif
