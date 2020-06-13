@@ -12,7 +12,7 @@
 cv::Point2i cv_offset(
         float x, float y, int image_width=2000, int image_height=2000){
     cv::Point2i output;
-    output.x = int(x * 100) + image_width/2;
+    output.x = int(x * 100) + image_width/3;
     output.y = image_height - int(y * 100) - image_height/3;
     return output;
 };
@@ -53,7 +53,7 @@ int main(){
         traj.push_back(x);
 
         // visualization
-        cv::Mat bg(3500,3500, CV_8UC3, cv::Scalar(255,255,255));
+        cv::Mat bg(2000,2000, CV_8UC3, cv::Scalar(255,255,255));
         cv::circle(bg, cv_offset(goal.x_, goal.y_, bg.cols, bg.rows),
                    30, cv::Scalar(255,0,0), 5);
         for(unsigned int j=0; j<ob.size(); j++){
