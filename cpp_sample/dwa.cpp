@@ -18,10 +18,13 @@ start_(start), goal_(goal), obs_(obs), config_(config)
 }
 
 bool Dwa::stepOnceToGoal(std::vector<State>* best_trajectry, State* cur_state) {
-    Control u;
-    Traj ltraj = dwa_control(cur_x_, u, config_, goal_, obs_);
-    cur_x_ = motion(cur_x_, u, config_.dt);
+    Control calculated_u;
+    Window dw = calc_dynamic_window(cur_x_, config_);
+    Traj ltraj = calc_final_input(cur_x_, calculated_u, dw, config_, goal_, obs_);
 
+    cur_x_ = motion(cur_x_, calculated_u, config_.dt);
+
+    //
     *best_trajectry = ltraj;
     *cur_state = cur_x_;
     if (std::sqrt(std::pow((cur_x_.x_ - goal_.x_), 2) + std::pow((cur_x_.y_ - goal_.y_), 2)) <= config_.robot_radius){
@@ -63,6 +66,7 @@ Traj Dwa::calc_trajectory(State x, float v, float w, Config config){
     Traj traj;
     traj.push_back(x);
     float time = 0.0;
+
     while (time <= config.predict_time){
         x = motion(x, Control{v, w}, config.dt);
         traj.push_back(x);
@@ -141,18 +145,9 @@ Traj Dwa::calc_final_input(
         }
     }
 
-//    std::cout << "traj_cnt: " << traj_cnt << std::endl;
     u = min_u;
     return best_traj;
 };
 
 
-Traj Dwa::dwa_control(State x, Control & u, Config config,
-                 Point goal, Obstacle ob){
-    // # Dynamic Window control
-    Window dw = calc_dynamic_window(x, config);
-    Traj traj = calc_final_input(x, u, dw, config, goal, ob);
-
-    return traj;
-}
 

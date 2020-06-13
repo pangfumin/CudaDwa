@@ -1,9 +1,3 @@
-/*************************************************************************
-	> File Name: main.cpp
-	> Author: TAI Lei
-	> Mail: ltai@ust.hk
-	> Created Time: Thu Mar  7 19:39:14 2019
- ************************************************************************/
 
 #include<iostream>
 #include<vector>
@@ -56,11 +50,7 @@ int main(){
     Traj ltraj;
     State x;
     while(!dwa_demo.stepOnceToGoal(&ltraj, &x)){
-
-//        Traj ltraj = dwa_control(x, u, config, goal, ob);
-//        x = motion(x, u, config.dt);
         traj.push_back(x);
-
 
         // visualization
         cv::Mat bg(3500,3500, CV_8UC3, cv::Scalar(255,255,255));

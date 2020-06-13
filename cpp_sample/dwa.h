@@ -23,8 +23,7 @@ private:
             Window dw, Config config, Point goal,
             std::vector<Point>ob);
 
-    Traj dwa_control(State x, Control & u, Config config,
-                          Point goal, Obstacle ob);
+
 
     State start_;
     Point goal_;
