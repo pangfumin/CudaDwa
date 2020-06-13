@@ -190,7 +190,7 @@ Traj Dwa::calc_final_input(
     std::cout << "valid_control_sample_cnt: " << valid_control_sample_cnt << " " << max_control_sample_cnt_ << std::endl;
 
 
-    // todo
+    // todo: parallelization
     for (int i = 0; i < valid_control_sample_cnt; i++) {
         auto vw = control_samples[i];
 
