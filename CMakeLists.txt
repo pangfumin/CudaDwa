@@ -25,7 +25,7 @@ include_directories(
     )
 
 add_executable(dwa_cpp_demo
-cpp_sample/dwa_demo.cpp)
+cpp_sample/dwa_demo.cpp cpp_sample/dwa.cpp cpp_sample/dwa.h cpp_sample/utility.h)
 
 target_link_libraries(dwa_cpp_demo
     ${OpenCV_LIBS}
