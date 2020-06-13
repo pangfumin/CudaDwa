@@ -3,7 +3,7 @@
 
 Toy code for local path planning algorithm DWA(Dynamic Window Approach) in CUDA implementation.
 
-![](https://raw.githubusercontent.com/pangfumin/CudaDwa/master/image/dwa_demo.gif)
+![](https://raw.githubusercontent.com/pangfumin/CudaDwa/master/image/dwa_demo.gif =250x250)
 
 ## dependency
 1. CUDA (developed and tested on 10.2 )
