@@ -42,19 +42,10 @@ private:
     State* dev_cur_x_;
     Point* dev_goal_;
     Point* dev_obs_;
-    Config* dev_config_;
-    Window* dev_window_;
 
     Control* dev_control_samples_;
     State* dev_calulated_trajectories_;
     float* dev_costs_;
-
-    int* dev_valid_control_sample_cnt_;
-    int* dev_motion_forward_steps_;
-    int* dev_obs_cnt_;
-
-
-
 };
 
 

@@ -50,26 +50,11 @@ Dwa::Dwa(const State& start, const Point& goal,  const Obstacle& obs, const Conf
     checkCudaErrors( cudaMalloc( (void**)&dev_obs_, obs_.size() * sizeof(Point) ) );
     checkCudaErrors( cudaMemcpy( dev_obs_, obs_.data(), obs_.size() * sizeof(Point), cudaMemcpyHostToDevice ) );
 
-    int obs_cnt =  obs_.size();
-    checkCudaErrors( cudaMalloc( (void**)&dev_obs_cnt_, 1 * sizeof(int) ) );
-    checkCudaErrors( cudaMemcpy( dev_obs_cnt_, &obs_cnt, 1 * sizeof(int), cudaMemcpyHostToDevice ) );
-
-
-    checkCudaErrors( cudaMalloc( (void**)&dev_config_, 1 * sizeof(Config) ) );
-    checkCudaErrors( cudaMemcpy( dev_config_, &config, 1 * sizeof(Config), cudaMemcpyHostToDevice ) );
-
-
-    checkCudaErrors( cudaMalloc( (void**)&dev_motion_forward_steps_, 1 * sizeof(int) ) );
-    checkCudaErrors( cudaMemcpy( dev_motion_forward_steps_, &motion_forward_steps_, 1 * sizeof(int), cudaMemcpyHostToDevice ) );
-
     // variable
     checkCudaErrors( cudaMalloc( (void**)&dev_cur_x_, 1 * sizeof(State) ) );
     checkCudaErrors( cudaMalloc( (void**)&dev_control_samples_, max_control_sample_cnt_ * sizeof(Control) ) );
     checkCudaErrors( cudaMalloc( (void**)&dev_calulated_trajectories_, max_control_sample_cnt_*motion_forward_steps_ * sizeof(State) ) );
     checkCudaErrors( cudaMalloc( (void**)&dev_costs_, max_control_sample_cnt_ * sizeof(float ) ) );
-    checkCudaErrors( cudaMalloc( (void**)&dev_window_, 1 * sizeof(Window) ) );
-    checkCudaErrors( cudaMalloc( (void**)&dev_valid_control_sample_cnt_, 1 * sizeof(int) ) );
-
 }
 
 Dwa::~Dwa() {
@@ -77,13 +62,8 @@ Dwa::~Dwa() {
     checkCudaErrors(cudaFree(dev_cur_x_));
     checkCudaErrors(cudaFree(dev_goal_));
     checkCudaErrors(cudaFree(dev_obs_));
-    checkCudaErrors(cudaFree(dev_config_));
     checkCudaErrors(cudaFree(dev_calulated_trajectories_));
     checkCudaErrors(cudaFree(dev_costs_));
-    checkCudaErrors(cudaFree(dev_window_));
-    checkCudaErrors(cudaFree(dev_valid_control_sample_cnt_));
-    checkCudaErrors(cudaFree(dev_motion_forward_steps_));
-    checkCudaErrors(cudaFree(dev_obs_cnt_));
 }
 
 
@@ -194,36 +174,36 @@ __global__ void calc_trajectories_costs_kernel(
          State* cur_state,
          Point* goal,
          Point* obs,
-         Config* config,
+         Config config,
          Control* control_samples,
          State* calculated_trajectries,
          float* costs,
-         int *valid_sample_cnt, int  *motion_steps,
-         int *obs_cnt) {
+         int valid_sample_cnt, int  motion_steps,
+         int obs_cnt) {
     int tid = threadIdx.x + blockIdx.x * blockDim.x;
-    int trajectory_idx = tid * (*motion_steps);
+    int trajectory_idx = tid * (motion_steps);
     int index =  trajectory_idx;
 
-    if (tid < *valid_sample_cnt) {
+    if (tid < valid_sample_cnt) {
         Control vw = control_samples[tid];
         State tem = *cur_state;
-        int steps = *motion_steps;
+        int steps = motion_steps;
         float to_goal_cost = 0;
         float speed_cost = 0;
         float ob_cost = 0;
         while (steps){
-            tem = motion(tem, vw, config->dt);
+            tem = motion(tem, vw, config.dt);
             calculated_trajectries[index] = tem;
             index ++;
 
-            float ob_cost_per_state =  calc_obstacle_cost_per_state(tem, obs, *obs_cnt, *config);
+            float ob_cost_per_state =  calc_obstacle_cost_per_state(tem, obs, obs_cnt, config);
             if (ob_cost < ob_cost_per_state) {
                 ob_cost = ob_cost_per_state;
             }
 
             if (steps == 1) {
-                to_goal_cost = calc_to_goal_cost(tem, *goal, *config);
-                speed_cost = config->speed_cost_gain * (config->max_speed - tem.v_);
+                to_goal_cost = calc_to_goal_cost(tem, *goal, config);
+                speed_cost = config.speed_cost_gain * (config.max_speed - tem.v_);
 
             }
             steps --;
@@ -240,7 +220,7 @@ __global__ void calc_trajectories_costs_kernel(
 Traj Dwa::calc_final_input(
         State x, Control& u,
         Window dw, Config config, Point goal,
-        std::vector<Point>ob){
+        std::vector<Point> ob){
 
     float min_cost = 10000.0;
 
@@ -267,25 +247,20 @@ Traj Dwa::calc_final_input(
     checkCudaErrors( cudaEventRecord( gpu_start, 0 ) );
 
     checkCudaErrors( cudaMemcpy( dev_cur_x_, &cur_x_, 1 * sizeof(State), cudaMemcpyHostToDevice ) );
-    checkCudaErrors( cudaMemcpy( dev_valid_control_sample_cnt_, &valid_control_sample_cnt, 1 * sizeof(int), cudaMemcpyHostToDevice ) );
     checkCudaErrors( cudaMemcpy( dev_control_samples_, control_samples.data(), control_samples.size() * sizeof(Control), cudaMemcpyHostToDevice ) );
 
     calc_trajectories_costs_kernel<<<blocksPerGrid,threadsPerBlock>>>(
             dev_cur_x_, //State* cur_state,
             dev_goal_,// Point* goal,
             dev_obs_,//Point* obs,
-            dev_config_,
+            config_,//
             dev_control_samples_, //Control* control_samples,
             dev_calulated_trajectories_,//State* calculated_trajectries,
             dev_costs_,//float* costs,
-            dev_valid_control_sample_cnt_,//int *valid_sample_cnt,
-            dev_motion_forward_steps_, //int  *motion_steps,
-            dev_obs_cnt_ //int *obs_cnt
+            valid_control_sample_cnt,
+            motion_forward_steps_,
+            ob.size()
             );
-
-
-
-
 
     // fetch const
     std::vector<float> gpu_final_costs(max_control_sample_cnt_);
