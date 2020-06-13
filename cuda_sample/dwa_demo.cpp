@@ -79,8 +79,8 @@ int main(){
         cv::imshow("dwa", bg);
         cv::waitKey(1);
 
-        // std::string int_count = std::to_string(count);
-        // cv::imwrite("./pngs/"+std::string(5-int_count.length(), '0').append(int_count)+".png", bg);
+//         std::string int_count = std::to_string(count);
+//         cv::imwrite("/home/pang/pngs/"+std::string(5-int_count.length(), '0').append(int_count)+".jpg", bg);
 
         count++;
         final_canvas = bg;
@@ -92,6 +92,10 @@ int main(){
             cv::circle(final_canvas, cv_offset(traj[j].x_, traj[j].y_, final_canvas.cols, final_canvas.rows),
                        7, cv::Scalar(0,0,255), -1);
         }
+
+//        std::string int_count = std::to_string(count);
+//        cv::imwrite("/home/pang/pngs/"+std::string(5-int_count.length(), '0').append(int_count)+".jpg", final_canvas);
+
 
         cv::imshow("dwa", final_canvas);
         cv::waitKey();

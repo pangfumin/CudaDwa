@@ -11,7 +11,6 @@ add_compile_options(-std=c++11)
 LIST(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/modules")
 
 find_package(OpenCV 3.4.0 REQUIRED)
-find_package(Eigen3 REQUIRED)
 
 find_package(CUDA)
 set(CUDA_SOURCE_PROPERTY_FORMAT OBJ)
@@ -20,7 +19,6 @@ set(CUDA_PROPAGATE_HOST_FLAGS OFF)
 set(CUDA_NVCC_FLAGS -arch=sm_60;-O3;-G;-g;-std=c++11)
 
 include_directories(
-    ${OpenCV_INCLUDE_DIRS}
     ${EIGEN3_INCLUDE_DIR}
     )
 
