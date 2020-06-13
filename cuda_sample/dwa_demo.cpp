@@ -52,16 +52,17 @@ Window calc_dynamic_window(State x, Config config){
 };
 
 
-Traj calc_trajectory(State x, float v, float w, Config config){
+Traj calc_trajectory(State x, float v, float w, int forward_staps, Config config){
 
     Traj traj;
     traj.push_back(x);
     float time = 0.0;
-    while (time <= config.predict_time){
+    while (forward_staps --){
         x = motion(x, Control{v, w}, config.dt);
         traj.push_back(x);
         time += config.dt;
     }
+//    std::cout << "traje: " << traj.size() << std::endl;
     return traj;
 };
 
@@ -115,11 +116,17 @@ Traj calc_final_input(
     Traj best_traj;
 
     // evalucate all trajectory with sampled input in dynamic window
+    int traj_v_cnt = 0;
+    int traj_w_cnt = 0;
     int traj_cnt = 0;
+
     for (float v=dw.min_v_; v<=dw.max_v_; v+=config.v_reso){
+        traj_v_cnt++;
+        traj_w_cnt = 0;
         for (float w=dw.min_w_; w<=dw.max_w_; w+=config.yawrate_reso){
 
-            Traj traj = calc_trajectory(x, v, w, config);
+            int forward_steps = (int)(config.predict_time / config.dt);
+            Traj traj = calc_trajectory(x, v, w, forward_steps, config);
 
             float to_goal_cost = calc_to_goal_cost(traj, goal, config);
             float speed_cost = config.speed_cost_gain * (config.max_speed - traj.back().v_);
@@ -132,23 +139,21 @@ Traj calc_final_input(
                 best_traj = traj;
             }
             traj_cnt ++;
+            traj_w_cnt ++;
+
         }
+
+
     }
 
-    std::cout << "traj_cnt: " << traj_cnt << std::endl;
+    std::cout << "traj_cnt: "<< traj_cnt << " "  <<  traj_v_cnt << " " << traj_w_cnt << std::endl;
+
+//    std::cout << "traj_cnt: " << traj_cnt << std::endl;
     u = min_u;
     return best_traj;
 };
 
 
-Traj dwa_control(State x, Control & u, Config config,
-                 Point goal, Obstacle ob){
-    // # Dynamic Window control
-    Window dw = calc_dynamic_window(x, config);
-    Traj traj = calc_final_input(x, u, dw, config, goal, ob);
-
-    return traj;
-}
 
 cv::Point2i cv_offset(
         float x, float y, int image_width=2000, int image_height=2000){
@@ -161,6 +166,7 @@ cv::Point2i cv_offset(
 
 int main(){
     State host_x{0.0, 0.0, PI/8.0, 0.0, 0.0};
+
     Point host_goal{10.0,10.0};
     Obstacle host_ob{
                         {-1, -1},
@@ -185,11 +191,57 @@ int main(){
     cv::namedWindow("dwa", cv::WINDOW_NORMAL);
     int count = 0;
 
+    State* dev_x;
+    Point* dev_goal;
+    Point* dev_ob;
+    Control* dev_u;
+    Config* dev_config;
+    Window* dev_window;
 
+    State* dev_calulated_trajectories;
+    float* dev_costs;
+
+
+    checkCudaErrors( cudaMalloc( (void**)&dev_x, 1 * sizeof(State) ) );
+    checkCudaErrors( cudaMemcpy( dev_x, &host_x, 1 * sizeof(State), cudaMemcpyHostToDevice ) );
+
+    checkCudaErrors( cudaMalloc( (void**)&dev_goal, 1 * sizeof(Point) ) );
+    checkCudaErrors( cudaMemcpy( dev_goal, &host_goal, 1 * sizeof(Point), cudaMemcpyHostToDevice ) );
+
+
+    checkCudaErrors( cudaMalloc( (void**)&dev_ob, host_ob.size() * sizeof(Point) ) );
+    checkCudaErrors( cudaMemcpy( dev_ob, &host_ob, host_ob.size() * sizeof(Point), cudaMemcpyHostToDevice ) );
+
+    checkCudaErrors( cudaMalloc( (void**)&dev_u, 1 * sizeof(Control) ) );
+
+    checkCudaErrors( cudaMalloc( (void**)&dev_config, 1 * sizeof(Config) ) );
+    checkCudaErrors( cudaMemcpy( dev_config, &host_config, 1 * sizeof(Config), cudaMemcpyHostToDevice ) );
+
+
+    int v_max_sample_cnt = 2 * (int)(host_config.max_accel * host_config.dt  / host_config.v_reso) + 1;
+    int w_max_sample_cnt = 2 * (int)(host_config.max_dyawrate * host_config.dt  / host_config.yawrate_reso) + 1;
+
+    std::cout << v_max_sample_cnt << " " << w_max_sample_cnt << " " << v_max_sample_cnt * w_max_sample_cnt << std::endl;
+
+    int motion_forward_steps = (int)(host_config.predict_time / host_config.dt) + 1;
+
+    checkCudaErrors( cudaMalloc( (void**)&dev_calulated_trajectories, v_max_sample_cnt*w_max_sample_cnt*motion_forward_steps * sizeof(State) ) );
+    checkCudaErrors( cudaMalloc( (void**)&dev_costs, v_max_sample_cnt*w_max_sample_cnt * sizeof(float ) ) );
+
+
+    checkCudaErrors( cudaMalloc( (void**)&dev_window, 1 * sizeof(Window) ) );
 
     cv::Mat final_canvas;
     for(int i=0; i<10000 && !terminal; i++){
-        Traj ltraj = dwa_control(host_x, host_u, host_config, host_goal, host_ob);
+        Window dw = calc_dynamic_window(host_x, host_config);
+        checkCudaErrors( cudaMemcpy( dev_window, &dw, 1 * sizeof(Window), cudaMemcpyHostToDevice ) );
+         calc_final_input(
+                dev_x, dev_u,
+                dev_window, dev_config, dev_goal,
+                dev_ob);
+
+        Traj ltraj = calc_final_input(host_x, host_u, dw, host_config, host_goal, host_ob);
+
         host_x = motion(host_x, host_u, host_config.dt);
         traj.push_back(host_x);
 
@@ -244,6 +296,15 @@ int main(){
         cv::imshow("dwa", final_canvas);
         cv::waitKey();
     }
+
+    checkCudaErrors(cudaFree(dev_x));
+    checkCudaErrors(cudaFree(dev_goal));
+    checkCudaErrors(cudaFree(dev_ob));
+    checkCudaErrors(cudaFree(dev_u));
+    checkCudaErrors(cudaFree(dev_config));
+    checkCudaErrors(cudaFree(dev_calulated_trajectories));
+    checkCudaErrors(cudaFree(dev_costs));
+    checkCudaErrors(cudaFree(dev_window));
 
     return 0;
 
