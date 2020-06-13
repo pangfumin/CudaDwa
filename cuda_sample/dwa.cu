@@ -125,7 +125,6 @@ Window Dwa::calc_dynamic_window(State x, Config config){
 };
 
 
-__host__ __device__
 float Dwa::calc_obstacle_cost(Traj traj, Obstacle ob, Config config){
     // calc obstacle cost inf: collistion, 0:free
     int skip_n = 2;
@@ -201,13 +200,9 @@ __global__ void calc_trajectories_costs_kernel(
          float* costs,
          int *valid_sample_cnt, int  *motion_steps,
          int *obs_cnt) {
-    __shared__ float cache[threadsPerBlock];
     int tid = threadIdx.x + blockIdx.x * blockDim.x;
     int trajectory_idx = tid * (*motion_steps);
     int index =  trajectory_idx;
-
-
-    float   temp = 0;
 
     if (tid < *valid_sample_cnt) {
         Control vw = control_samples[tid];
@@ -275,8 +270,6 @@ Traj Dwa::calc_final_input(
     checkCudaErrors( cudaMemcpy( dev_valid_control_sample_cnt_, &valid_control_sample_cnt, 1 * sizeof(int), cudaMemcpyHostToDevice ) );
     checkCudaErrors( cudaMemcpy( dev_control_samples_, control_samples.data(), control_samples.size() * sizeof(Control), cudaMemcpyHostToDevice ) );
 
-
-
     calc_trajectories_costs_kernel<<<blocksPerGrid,threadsPerBlock>>>(
             dev_cur_x_, //State* cur_state,
             dev_goal_,// Point* goal,
@@ -295,24 +288,23 @@ Traj Dwa::calc_final_input(
 
 
     // fetch const
-    std::vector<float> tem_final_costs(max_control_sample_cnt_);
-    checkCudaErrors( cudaMemcpy( tem_final_costs.data(), dev_costs_, control_samples.size() * sizeof(float), cudaMemcpyDeviceToHost ) );
-
+    std::vector<float> gpu_final_costs(max_control_sample_cnt_);
+    checkCudaErrors( cudaMemcpy( gpu_final_costs.data(), dev_costs_, control_samples.size() * sizeof(float), cudaMemcpyDeviceToHost ) );
 
     // find the best one
-    float tem_min_cost = 10000.0;;
-    int tem_best_idx;
+    float gpu_min_cost = 10000.0;;
+    int gpu_best_idx;
     for (int i = 0; i < valid_control_sample_cnt; i++) {
-        if (tem_final_costs[i] < tem_min_cost) {
-            tem_min_cost = tem_final_costs[i];
-            tem_best_idx = i;
+        if (gpu_final_costs[i] < gpu_min_cost) {
+            gpu_min_cost = gpu_final_costs[i];
+            gpu_best_idx = i;
         }
     }
 
     // fetch best trajectry
-    std::vector<State> tem_best_traj(motion_forward_steps_);
-    checkCudaErrors( cudaMemcpy( tem_best_traj.data(),
-            dev_calulated_trajectories_ + tem_best_idx * motion_forward_steps_,
+    std::vector<State> gpu_best_traj(motion_forward_steps_);
+    checkCudaErrors( cudaMemcpy( gpu_best_traj.data(),
+            dev_calulated_trajectories_ + gpu_best_idx * motion_forward_steps_,
                                  motion_forward_steps_ * sizeof(State), cudaMemcpyDeviceToHost ) );
 
 
@@ -345,13 +337,10 @@ Traj Dwa::calc_final_input(
             steps --;
         }
 
-//        std::cout << traj.size() << std::endl;
-
 
         float to_goal_cost = calc_to_goal_cost(traj.back(), goal, config);
         float speed_cost = config.speed_cost_gain * (config.max_speed - traj.back().v_);
         float ob_cost = calc_obstacle_cost(traj, ob, config);
-//        float ob_cost = 0;
         float final_cost = to_goal_cost + speed_cost + ob_cost;
 
         final_costs.at(i) = final_cost;
@@ -372,13 +361,11 @@ Traj Dwa::calc_final_input(
                           (float)CLOCKS_PER_SEC * 1000.0f;
     printf( "CPU Time to process:  %3.1f ms\n", CPU_elapsedTime );
 
-
-    std::cout << "best_idx: " << best_idx << " " << tem_best_idx << std::endl;
+    std::cout << "best_idx: " << best_idx << " " << gpu_best_idx << std::endl;
 #endif
 
-    u =  control_samples[tem_best_idx];
-//    best_traj = trajecotries.at(best_idx);
-    best_traj = tem_best_traj;
+    u =  control_samples[gpu_best_idx];
+    best_traj = gpu_best_traj;
 
     return best_traj;
 };
