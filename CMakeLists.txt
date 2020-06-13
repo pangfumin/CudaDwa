@@ -40,6 +40,7 @@ include_directories(
 
 CUDA_ADD_EXECUTABLE(dwa_cuda_demo
         cuda_sample/dwa_demo.cpp
+        cuda_sample/dwa.cpp
         cuda_sample/dwa.cu)
 
 target_link_libraries(dwa_cuda_demo

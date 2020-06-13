@@ -25,7 +25,6 @@ private:
 
 
 
-    State start_;
     Point goal_;
     Obstacle obs_;
     Config config_;

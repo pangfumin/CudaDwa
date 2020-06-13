@@ -1,56 +1,52 @@
-#ifndef __DWA_H__
-#define __DWA_H__
+//
+// Created by pang on 2020/6/13.
+//
 
-#define PI 3.141592653
+#ifndef DWA_DEMO_DWA_H
+#define DWA_DEMO_DWA_H
+#include "utility.h"
 
-
-struct State {
-    float x_;
-    float y_;
-    float theta_;
-    float v_;
-    float w_;
-};
-
-
-//using Traj = std::vector<State>;
-
-struct Window {
-    float min_v_;
-    float max_v_;
-    float min_w_;
-    float max_w_;
-
-};
-
-struct Control {
-    float v_;
-    float w_;
-};
-
-class Point {
+class Dwa {
 public:
-    float x_;
-    float y_;
+    Dwa(const State& start, const Point& goal,  const Obstacle& obs, const Config& config);
+    ~Dwa();
+    bool stepOnceToGoal(std::vector<State>* best_trajectry, State* cur_state);
+
+private:
+    State motion(State x, Control u, float dt);
+    Window calc_dynamic_window(State x, Config config);
+    Traj calc_trajectory(State x, float v, float w, Config config);
+    float calc_obstacle_cost(Traj traj, Obstacle ob, Config config);
+    float calc_to_goal_cost(Traj traj, Point goal, Config config);
+    Traj calc_final_input(
+            State x, Control& u,
+            Window dw, Config config, Point goal,
+            std::vector<Point>ob);
+
+
+    int max_control_sample_cnt_;
+    int motion_forward_steps_;
+
+    // host
+    Point goal_;
+    Obstacle obs_;
+    Config config_;
+    State cur_x_;
+
+    // dev
+    State* dev_cur_x_;
+    Point* dev_goal_;
+    Point* dev_obs_;
+    Control* dev_u_;
+    Config* dev_config_;
+    Window* dev_window_;
+
+    State* dev_calulated_trajectories_;
+    float* dev_costs_;
+
+
+
 };
 
-//using Obstacle = std::vector<Point>;;
 
-struct Config{
-    float max_speed = 1.0;
-    float min_speed = -0.5;
-    float max_yawrate = 40.0 * PI / 180.0;
-    float max_accel = 0.2;
-    float robot_radius = 1.0;
-    float max_dyawrate = 40.0 * PI / 180.0;
-
-    float v_reso = 0.01;
-    float yawrate_reso = 0.01 * PI / 180.0;
-
-    float dt = 0.1;
-    float predict_time = 3.0;
-    float to_goal_cost_gain = 1.0;
-    float speed_cost_gain = 1.0;
-};
-
-#endif
+#endif //DWA_DEMO_DWA_H

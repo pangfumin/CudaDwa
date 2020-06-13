@@ -11,9 +11,8 @@
 #include <limits>
 
 Dwa::Dwa(const State& start, const Point& goal,  const Obstacle& obs, const Config& config):
-start_(start), goal_(goal), obs_(obs), config_(config)
+cur_x_(start), goal_(goal), obs_(obs), config_(config)
 {
-    cur_x_ = start;
 
 }
 
