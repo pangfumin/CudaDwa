@@ -23,7 +23,7 @@ public:
 
 private:
     Window calc_dynamic_window(State x, Config config);
-    __host__ __device__ float calc_obstacle_cost(Traj traj, Obstacle ob, Config config);
+    float calc_obstacle_cost(Traj traj, Obstacle ob, Config config);
     Traj calc_final_input(
             State x, Control& u,
             Window dw, Config config, Point goal,
