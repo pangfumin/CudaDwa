@@ -5,11 +5,11 @@ Toy code for local path planning algorithm DWA(Dynamic Window Approach) in CUDA 
 
 ![](https://raw.githubusercontent.com/pangfumin/CudaDwa/master/image/dwa_demo.gif)
 
-## dependency
+## Dependency
 1. CUDA (developed and tested on 10.2 )
 2. OpenCV (developed and tested on 3.3)
 
-## compilation
+## Compilation
 ```sh
 git clone https://github.com/pangfumin/CudaDwa.git
 cd CudaDwa
@@ -19,7 +19,7 @@ cmake ..
 make
 ```
 
-## compilation
+## Demo
 1. run cpp demo
 
 ```sh
