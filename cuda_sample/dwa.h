@@ -39,8 +39,6 @@ private:
     State cur_x_;
 
     // dev
-    State* dev_cur_x_;
-    Point* dev_goal_;
     Point* dev_obs_;
 
     Control* dev_control_samples_;
